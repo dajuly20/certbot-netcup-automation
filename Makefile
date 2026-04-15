@@ -47,17 +47,33 @@ install:
 	@$(MAKE) fix-permissions
 	@echo ""
 	@echo "$(YELLOW)Step 3/6: Configure Domains$(NC)"
-	@echo "Opening domain editor..."
-	@$(MAKE) edit-domains || true
+	@if [ -f "domains.conf" ] && [ -n "$$(grep -v '^#' domains.conf | grep -v '^[[:space:]]*$$')" ]; then \
+		echo "Current domains:"; \
+		grep -v '^#' domains.conf | grep -v '^[[:space:]]*$$' | nl -w2 -s'. '; \
+		echo ""; \
+		read -p "Edit domains? [y/N] " -n 1 -r; \
+		echo; \
+		if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+			$(MAKE) edit-domains || true; \
+		else \
+			echo "$(GREEN)✓ Keeping current domains$(NC)"; \
+		fi; \
+	else \
+		echo "No domains configured yet. Opening domain editor..."; \
+		$(MAKE) edit-domains || true; \
+	fi
 	@echo ""
 	@echo "$(YELLOW)Step 4/6: Review Configuration$(NC)"
 	@echo "Current config.yaml settings:"
 	@grep -A3 "^renewal:" config.yaml | grep -E "(renew_days_before|dns_propagation_timeout|email)" || true
 	@echo ""
-	@read -p "Do you want to edit config.yaml? [y/N] " -n 1 -r; \
+	@read -p "Edit config.yaml? [y/N] (N = keep as is) " -n 1 -r; \
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
 		$${EDITOR:-nano} config.yaml; \
+		echo "$(GREEN)✓ Configuration updated$(NC)"; \
+	else \
+		echo "$(GREEN)✓ Keeping current configuration$(NC)"; \
 	fi
 	@echo ""
 	@echo "$(YELLOW)Step 5/6: Setup Systemd Service$(NC)"
@@ -112,19 +128,27 @@ edit-domains:
 	@./scripts/edit-domains.sh
 
 edit-config:
-	@echo "$(YELLOW)Opening config.yaml for editing...$(NC)"
+	@echo "$(YELLOW)Current config.yaml settings:$(NC)"
 	@echo ""
-	@echo "Key settings to configure:"
-	@echo "  - renew_days_before: When to renew certificates (default: 30)"
-	@echo "  - dns_propagation_timeout: DNS wait time in seconds (default: 1800)"
+	@grep -A8 "^renewal:" config.yaml || true
+	@echo ""
+	@echo "$(YELLOW)Key settings:$(NC)"
+	@echo "  - renew_days_before: When to renew certificates"
+	@echo "  - dns_propagation_timeout: DNS wait time in seconds"
 	@echo "  - email: Let's Encrypt notification email"
 	@echo ""
-	@$${EDITOR:-nano} config.yaml
-	@echo ""
-	@echo "$(GREEN)✓ Configuration updated$(NC)"
-	@echo ""
-	@echo "New settings:"
-	@grep -A8 "^renewal:" config.yaml || true
+	@read -p "Edit config.yaml? [y/N] (N = keep as is) " -n 1 -r; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		$${EDITOR:-nano} config.yaml; \
+		echo ""; \
+		echo "$(GREEN)✓ Configuration updated$(NC)"; \
+		echo ""; \
+		echo "New settings:"; \
+		grep -A8 "^renewal:" config.yaml || true; \
+	else \
+		echo "$(GREEN)✓ Keeping current configuration$(NC)"; \
+	fi
 
 test:
 	@echo "$(YELLOW)Running certificate renewal (this may take 30+ minutes)...$(NC)"

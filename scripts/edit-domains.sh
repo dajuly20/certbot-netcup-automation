@@ -39,7 +39,7 @@ while true; do
     echo "  2) Remove a domain"
     echo "  3) Edit domains.conf manually"
     echo "  4) Show all domains (including commented)"
-    echo "  5) Exit"
+    echo "  5) OK - Keep as is (Exit)"
     echo ""
     read -p "Choice [1-5]: " choice
 
@@ -89,7 +89,7 @@ while true; do
             echo ""
             ;;
         5)
-            echo "Bye!"
+            echo -e "${GREEN}✓ Keeping current configuration${NC}"
             exit 0
             ;;
         *)
