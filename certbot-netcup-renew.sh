@@ -119,7 +119,7 @@ docker run --rm \
     -v /var/lib/letsencrypt:/var/lib/letsencrypt \
     -v /var/log/letsencrypt:/var/log/letsencrypt \
     "${DOCKER_IMAGE}" \
-    certonly \
+    certbot certonly \
     --non-interactive \
     --agree-tos \
     --email "${CERTBOT_EMAIL}" \
