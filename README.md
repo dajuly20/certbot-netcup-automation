@@ -75,10 +75,19 @@ certbot-netcup-automation/
 make install
 ```
 
-This will guide you through:
-1. Setting up Netcup API credentials
-2. Fixing file permissions
-3. Configuring systemd service
+This will guide you through **all 6 steps**:
+1. **Setup API Credentials** - Interactive wizard for Netcup credentials
+2. **Fix File Permissions** - Secure your credentials file
+3. **Configure Domains** - Interactive domain editor
+4. **Review Configuration** - Optional config.yaml editing
+5. **Setup Systemd Service** - Configure automatic daily renewal
+6. **Verify Installation** - Check that everything is configured correctly
+
+The installer will show you a summary at the end with:
+- Number of configured domains
+- Renewal threshold setting
+- Service schedule
+- Next steps to test your setup
 
 ### Manual Setup
 
@@ -211,9 +220,10 @@ wiche.eu
 | Command | Description |
 |---------|-------------|
 | `make help` | Show all available commands |
-| `make install` | Full installation (interactive setup) |
+| `make install` | **Full guided installation (all steps)** |
 | `make setup-credentials` | Configure Netcup API credentials |
 | `make edit-domains` | Interactive domain editor |
+| `make edit-config` | Edit config.yaml settings |
 | `make fix-permissions` | Fix credentials file permissions |
 | `make setup-systemd` | Configure systemd service |
 | `make test` | Run manual certificate renewal |

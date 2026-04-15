@@ -1,4 +1,4 @@
-.PHONY: help install setup-credentials fix-permissions setup-systemd edit-domains test status logs logs-live clean uninstall verify-credentials list-domains list-certs check-expiry
+.PHONY: help install setup-credentials fix-permissions setup-systemd edit-domains edit-config test status logs logs-live clean uninstall verify-credentials list-domains list-certs check-expiry
 
 # Colors for output
 GREEN  := \033[0;32m
@@ -16,9 +16,10 @@ help:
 	@echo "$(GREEN)Certbot-Netcup Automation - Makefile$(NC)"
 	@echo ""
 	@echo "Available targets:"
-	@echo "  $(YELLOW)make install$(NC)            - Full installation (credentials, permissions, systemd)"
+	@echo "  $(YELLOW)make install$(NC)            - Full guided installation (all steps)"
 	@echo "  $(YELLOW)make setup-credentials$(NC)  - Interactive setup for Netcup API credentials"
 	@echo "  $(YELLOW)make edit-domains$(NC)       - Interactive domain editor"
+	@echo "  $(YELLOW)make edit-config$(NC)        - Edit config.yaml settings"
 	@echo "  $(YELLOW)make fix-permissions$(NC)    - Fix credentials file permissions (600)"
 	@echo "  $(YELLOW)make setup-systemd$(NC)      - Configure systemd service and timer"
 	@echo "  $(YELLOW)make test$(NC)               - Run certificate renewal manually (test)"
@@ -39,20 +40,51 @@ install:
 	@echo "$(GREEN)  Certbot-Netcup Automation - Full Installation$(NC)"
 	@echo "$(GREEN)═══════════════════════════════════════════════════════$(NC)"
 	@echo ""
+	@echo "$(YELLOW)Step 1/6: Setup API Credentials$(NC)"
 	@$(MAKE) setup-credentials
 	@echo ""
+	@echo "$(YELLOW)Step 2/6: Fix File Permissions$(NC)"
 	@$(MAKE) fix-permissions
 	@echo ""
+	@echo "$(YELLOW)Step 3/6: Configure Domains$(NC)"
+	@echo "Opening domain editor..."
+	@$(MAKE) edit-domains || true
+	@echo ""
+	@echo "$(YELLOW)Step 4/6: Review Configuration$(NC)"
+	@echo "Current config.yaml settings:"
+	@grep -A3 "^renewal:" config.yaml | grep -E "(renew_days_before|dns_propagation_timeout|email)" || true
+	@echo ""
+	@read -p "Do you want to edit config.yaml? [y/N] " -n 1 -r; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		$${EDITOR:-nano} config.yaml; \
+	fi
+	@echo ""
+	@echo "$(YELLOW)Step 5/6: Setup Systemd Service$(NC)"
 	@$(MAKE) setup-systemd
 	@echo ""
+	@echo "$(YELLOW)Step 6/6: Verify Installation$(NC)"
+	@echo "Verifying credentials..."
+	@$(MAKE) verify-credentials
+	@echo ""
+	@echo "Checking configured domains..."
+	@$(MAKE) list-domains
+	@echo ""
 	@echo "$(GREEN)═══════════════════════════════════════════════════════$(NC)"
-	@echo "$(GREEN)  Installation Complete!$(NC)"
+	@echo "$(GREEN)  ✓ Installation Complete!$(NC)"
 	@echo "$(GREEN)═══════════════════════════════════════════════════════$(NC)"
 	@echo ""
-	@echo "Next steps:"
-	@echo "  1. Edit domains.conf to add your domains"
-	@echo "  2. Run: $(YELLOW)make test$(NC) to test the setup"
-	@echo "  3. Check logs: $(YELLOW)make logs$(NC)"
+	@echo "$(YELLOW)Configuration Summary:$(NC)"
+	@echo "  Domains:         $$(grep -v '^#' domains.conf | grep -v '^[[:space:]]*$$' | wc -l) domains configured"
+	@echo "  Renew threshold: $$(grep renew_days_before config.yaml | awk '{print $$2}') days"
+	@echo "  DNS timeout:     $$(grep dns_propagation_timeout config.yaml | awk '{print $$2}')s"
+	@echo "  Service:         certbot-netcup.timer (daily at 03:30)"
+	@echo ""
+	@echo "$(YELLOW)Next steps:$(NC)"
+	@echo "  1. Test the setup:        $(GREEN)make test$(NC)"
+	@echo "  2. Check expiry dates:    $(GREEN)make check-expiry$(NC)"
+	@echo "  3. View service status:   $(GREEN)make status$(NC)"
+	@echo "  4. Monitor logs:          $(GREEN)make logs-live$(NC)"
 	@echo ""
 
 setup-credentials:
@@ -78,6 +110,21 @@ setup-systemd:
 
 edit-domains:
 	@./scripts/edit-domains.sh
+
+edit-config:
+	@echo "$(YELLOW)Opening config.yaml for editing...$(NC)"
+	@echo ""
+	@echo "Key settings to configure:"
+	@echo "  - renew_days_before: When to renew certificates (default: 30)"
+	@echo "  - dns_propagation_timeout: DNS wait time in seconds (default: 1800)"
+	@echo "  - email: Let's Encrypt notification email"
+	@echo ""
+	@$${EDITOR:-nano} config.yaml
+	@echo ""
+	@echo "$(GREEN)✓ Configuration updated$(NC)"
+	@echo ""
+	@echo "New settings:"
+	@grep -A8 "^renewal:" config.yaml || true
 
 test:
 	@echo "$(YELLOW)Running certificate renewal (this may take 30+ minutes)...$(NC)"
