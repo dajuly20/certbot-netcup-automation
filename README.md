@@ -2,6 +2,34 @@
 
 Automated SSL/TLS certificate renewal for multiple domains using Netcup DNS-01 challenge with Let's Encrypt.
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Quick Start](#quick-start)
+- [Installation](#installation)
+  - [Quick Install (Recommended)](#quick-install-recommended)
+  - [Manual Setup](#manual-setup)
+  - [Step-by-Step Manual Execution](#step-by-step-manual-execution)
+- [Files Structure](#files-structure)
+- [Managing Domains](#managing-domains)
+- [Usage Commands](#usage-commands)
+- [Configuration Files](#configuration-files)
+- [Makefile Commands Reference](#makefile-commands-reference)
+- [How It Works](#how-it-works)
+  - [Smart Renewal Process](#smart-renewal-process)
+  - [Example Scenario](#example-scenario)
+  - [Expiry Tracking Workflow](#expiry-tracking-workflow)
+  - [What Happens During Automatic Runs](#what-happens-during-automatic-runs)
+- [Frequently Asked Questions (FAQ)](#frequently-asked-questions-faq)
+- [Troubleshooting](#troubleshooting)
+- [Testing](#testing)
+- [Schedule](#schedule)
+- [Git Workflow](#git-workflow)
+- [Security Notes](#security-notes)
+- [License](#license)
+- [Support](#support)
+
 ## Overview
 
 This tool automatically renews SSL certificates for all domains listed in `domains.conf` using:
@@ -102,6 +130,158 @@ make fix-permissions
 
 # 3. Configure systemd service
 make setup-systemd
+```
+
+### Step-by-Step Manual Execution
+
+Want to understand exactly what happens? Here's the complete manual walkthrough:
+
+#### Step 1: Setup Netcup API Credentials
+
+```bash
+make setup-credentials
+# OR manually:
+sudo ./scripts/setup-credentials-interactive.sh
+```
+
+**What happens:**
+- Opens an interactive wizard (uses whiptail/dialog if available)
+- Asks for your Netcup Customer ID, API Key, and API Password
+- Creates `/var/lib/letsencrypt/netcup_credentials.ini`
+- Sets secure permissions (600, root:root)
+
+**Where to get credentials:**
+1. Log in to https://ccp.netcup.net
+2. Go to: Master Data → API
+3. Create a new API key
+4. Copy: Customer ID, API Key, API Password
+
+#### Step 2: Fix File Permissions
+
+```bash
+make fix-permissions
+# OR manually:
+sudo ./scripts/fix-permissions.sh
+```
+
+**What happens:**
+- Checks `/var/lib/letsencrypt/netcup_credentials.ini`
+- Changes permissions to 600 (only root can read/write)
+- Changes owner to root:root
+- Eliminates the "Unsafe permissions" warning
+
+#### Step 3: Configure Your Domains
+
+```bash
+make edit-domains
+# OR manually:
+./scripts/edit-domains.sh
+# OR edit directly:
+nano domains.conf
+```
+
+**What happens:**
+- Opens interactive menu (if using script)
+- You can add/remove domains
+- Format: One domain per line (no wildcards needed)
+- Example:
+  ```
+  lisamae.de
+  julianw.de
+  wiche.eu
+  ```
+- Each domain automatically gets base + wildcard cert (e.g., `example.com` + `*.example.com`)
+
+#### Step 4: Review/Edit Configuration
+
+```bash
+make edit-config
+# OR manually:
+nano config.yaml
+```
+
+**What happens:**
+- Opens `config.yaml` in your editor
+- Key settings to review:
+  - `renew_days_before: 30` - When to renew (default: 30 days before expiry)
+  - `dns_propagation_timeout: 1800` - DNS wait time (30 minutes)
+  - `email: admin@julianw.de` - Your notification email
+  - `staging: false` - Set to `true` for testing
+
+**Example config.yaml:**
+```yaml
+renewal:
+  renew_days_before: 30
+  dns_propagation_timeout: 1800
+  email: admin@julianw.de
+  staging: false
+```
+
+#### Step 5: Setup Systemd Service
+
+```bash
+make setup-systemd
+# OR manually:
+sudo ./scripts/setup-systemd.sh
+```
+
+**What happens:**
+- Creates systemd override configuration
+- Points service to your renewal script
+- Reloads systemd daemon
+- Shows service status
+
+**Service details:**
+- Service: `certbot-netcup.service`
+- Timer: `certbot-netcup.timer`
+- Schedule: Daily at 03:30
+- Script: `/home/julian/certbot-netcup-automation/certbot-netcup-renew.sh`
+
+#### Step 6: Test Your Setup
+
+```bash
+make test
+# OR manually:
+sudo systemctl start certbot-netcup.service
+```
+
+**What happens (takes ~30-60 minutes):**
+1. Checks if Docker is running
+2. Verifies credentials file exists
+3. Reads domains from `domains.conf`
+4. Checks expiry dates of existing certificates
+5. Filters domains that need renewal (< X days)
+6. Runs Docker container with certbot
+7. For each domain:
+   - Creates DNS TXT records via Netcup API
+   - Waits for DNS propagation (1800s)
+   - Let's Encrypt validates domain ownership
+   - Issues/renews certificate
+8. Reloads Apache to use new certificates
+9. Logs everything to `/var/log/certbot-netcup.log`
+
+**Monitor progress:**
+```bash
+# In another terminal:
+make logs-live
+# OR:
+tail -f /var/log/certbot-netcup.log
+```
+
+#### Step 7: Check Results
+
+```bash
+# Check expiry dates (and update domains.conf)
+make check-expiry
+
+# View service status
+make status
+
+# See recent logs
+make logs
+
+# List all certificates
+make list-certs
 ```
 
 ## Managing Domains
@@ -334,6 +514,149 @@ Only `wiche.eu` will be renewed, saving time and API calls.
    wiche.eu
    ```
 4. Next renewal run will see this and renew accordingly
+
+### What Happens During Automatic Runs
+
+Every day at **03:30**, the systemd timer triggers:
+
+#### Automatic Execution Flow:
+
+```
+03:30:00  Timer triggers certbot-netcup.service
+03:30:01  ├─ Script starts, creates lock file
+03:30:02  ├─ Reads config.yaml (renew_days_before: 30)
+03:30:03  ├─ Reads domains.conf (5 domains found)
+03:30:04  ├─ Checks certificate expiry dates:
+          │   • lisamae.de: 56 days → SKIP (> 30)
+          │   • julianw.de: 90 days → SKIP (> 30)
+          │   • wiche.eu: 25 days → RENEW (< 30) ✓
+          │   • fruta-no-es-postre.de: 20 days → RENEW (< 30) ✓
+          │   • fruta-no-es-postre.eu: 18 days → RENEW (< 30) ✓
+03:30:05  ├─ Docker starts: coldfix/certbot-dns-netcup
+03:30:10  ├─ For wiche.eu:
+          │   ├─ Creates TXT record: _acme-challenge.wiche.eu
+          │   ├─ Waits 1800s for DNS propagation
+04:00:10  │   ├─ Let's Encrypt validates
+04:00:15  │   └─ Certificate issued ✓
+04:00:16  ├─ For fruta-no-es-postre.de:
+          │   ├─ Creates TXT record
+          │   ├─ Waits 1800s
+04:30:16  │   ├─ Let's Encrypt validates
+04:30:20  │   └─ Certificate issued ✓
+04:30:21  ├─ For fruta-no-es-postre.eu:
+          │   ├─ Creates TXT record
+          │   ├─ Waits 1800s
+05:00:21  │   ├─ Let's Encrypt validates
+05:00:25  │   └─ Certificate issued ✓
+05:00:26  ├─ Reloads Apache: systemctl reload apache2 ✓
+05:00:27  ├─ Removes lock file
+05:00:28  └─ Logs: "Certificate renewal completed successfully"
+
+Next run: Tomorrow at 03:30
+```
+
+**Key Points:**
+- ⚡ **Smart filtering**: Only renews what's needed (saves ~1.5 hours if no renewals)
+- 📝 **Everything logged**: Check `/var/log/certbot-netcup.log`
+- 🔒 **Lock file**: Prevents overlapping runs
+- 🔄 **Automatic Apache reload**: New certs immediately active
+- 📧 **Email notifications**: Let's Encrypt sends expiry warnings to configured email
+
+**If all certificates are > 30 days:**
+```
+03:30:00  Timer triggers
+03:30:01  ├─ Script starts
+03:30:04  ├─ Checks expiry: All > 30 days
+03:30:05  ├─ Logs: "No domains need renewal at this time"
+03:30:06  └─ Exits (runtime: 6 seconds)
+```
+
+**Check what happened:**
+```bash
+# View last run
+journalctl -u certbot-netcup.service -n 50
+
+# Check if any renewals happened
+grep "WILL RENEW" /var/log/certbot-netcup.log | tail -20
+
+# See next scheduled run
+systemctl list-timers certbot-netcup.timer
+```
+
+## Frequently Asked Questions (FAQ)
+
+### How do I know if it's working?
+
+```bash
+# Check service status
+make status
+
+# View recent logs
+make logs
+
+# Check certificate expiry dates
+make check-expiry
+```
+
+### When will my certificates be renewed?
+
+Certificates are renewed when they have **less than 30 days** until expiry (configurable in `config.yaml`).
+
+Check when yours will be renewed:
+```bash
+make check-expiry
+```
+
+### What if I want to renew NOW regardless of expiry?
+
+The script respects certbot's `--keep-until-expiring` flag. To force renewal:
+1. Temporarily set `renew_days_before: 90` in `config.yaml`
+2. Run `make test`
+3. Change it back to `30` afterwards
+
+Or use certbot directly:
+```bash
+sudo certbot renew --force-renewal
+```
+
+### How do I add a new domain?
+
+```bash
+make edit-domains
+# Add your domain in the interactive menu
+# Then run:
+make test
+```
+
+### Can I test without affecting production?
+
+Yes! Edit `config.yaml` and set:
+```yaml
+staging: true
+```
+
+Run `make test`, then check it worked. Set back to `false` for production.
+
+### How long does renewal take?
+
+- Per domain: ~30 minutes (DNS propagation timeout)
+- 5 domains: ~2.5 hours
+- 0 domains (all fresh): ~5 seconds
+
+### Where are the certificates stored?
+
+```bash
+/etc/letsencrypt/live/yourdomain.com/fullchain.pem  # Certificate
+/etc/letsencrypt/live/yourdomain.com/privkey.pem    # Private key
+```
+
+### How do I view logs?
+
+```bash
+make logs          # Recent logs
+make logs-live     # Follow in real-time
+journalctl -u certbot-netcup.service -n 100  # Systemd logs
+```
 
 ## Troubleshooting
 
