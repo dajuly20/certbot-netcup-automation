@@ -1,8 +1,11 @@
 # Sensitive files - DO NOT COMMIT
 *.ini
-*credentials*
+*credentials.ini
 *.key
 *.pem
+
+# But allow scripts with 'credentials' in the name
+!scripts/*credentials*.sh
 
 # Log files
 *.log

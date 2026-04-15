@@ -8,47 +8,102 @@ This tool automatically renews SSL certificates for all domains listed in `domai
 - **Certbot** via Docker for certificate management
 - **Netcup DNS API** for DNS-01 challenge validation
 - **Systemd timer** for daily automated runs
+- **Makefile** for easy installation and management
 
 ## Features
 
-- Configuration-based domain management (no script editing needed)
-- Automatic wildcard certificate support (*.domain.tld)
-- Unified DNS propagation timeout for all domains
-- Automatic Apache reload after renewal
-- Comprehensive logging
-- Lock file to prevent concurrent runs
-- Git version control for configuration tracking
+- 🚀 **One-command installation** with `make install`
+- 🔧 **Interactive setup** for credentials and domains
+- 🔄 **Configuration-based** domain management (no script editing)
+- 🌐 **Automatic wildcard** certificate support (*.domain.tld)
+- ⚡ **Unified DNS propagation** timeout for all domains
+- 🔁 **Automatic Apache reload** after renewal
+- 📝 **Comprehensive logging** with easy access
+- 🔒 **Lock file** to prevent concurrent runs
+- 🐙 **Git version control** for configuration tracking
 
-## Files
+## Quick Start
 
-- `certbot-netcup-renew.sh` - Main renewal script
-- `config.sh` - Global configuration settings
-- `domains.conf` - List of domains to manage
-- `.gitignore` - Protects sensitive files from being committed
-
-## Setup
-
-### 1. Credentials
-
-Ensure your Netcup API credentials are configured in:
-```
-/var/lib/letsencrypt/netcup_credentials.ini
-```
-
-The file should contain:
-```ini
-dns_netcup_customer_id  = YOUR_CUSTOMER_ID
-dns_netcup_api_key      = YOUR_API_KEY
-dns_netcup_api_password = YOUR_API_PASSWORD
-```
-
-**Security**: Set proper permissions:
 ```bash
-sudo chmod 600 /var/lib/letsencrypt/netcup_credentials.ini
-sudo chown root:root /var/lib/letsencrypt/netcup_credentials.ini
+# Clone the repository
+git clone https://github.com/dajuly20/certbot-netcup-automation.git
+cd certbot-netcup-automation
+
+# See all available commands
+make help
+
+# Full installation (interactive)
+make install
+
+# Edit domains to manage
+make edit-domains
+
+# Test the setup
+make test
+
+# Check status
+make status
 ```
 
-### 2. Configure Domains
+## Files Structure
+
+```
+certbot-netcup-automation/
+├── certbot-netcup-renew.sh      # Main renewal script
+├── config.sh                     # Global configuration settings
+├── domains.conf                  # List of domains to manage
+├── Makefile                      # Installation and management commands
+├── scripts/
+│   ├── setup-credentials-interactive.sh  # Interactive credentials wizard
+│   ├── setup-systemd.sh                  # Systemd service configurator
+│   ├── fix-permissions.sh                # Security permissions fixer
+│   └── edit-domains.sh                   # Interactive domain editor
+└── .gitignore                    # Protects sensitive files
+```
+
+## Installation
+
+### Quick Install (Recommended)
+
+```bash
+make install
+```
+
+This will guide you through:
+1. Setting up Netcup API credentials
+2. Fixing file permissions
+3. Configuring systemd service
+
+### Manual Setup
+
+If you prefer to set up manually:
+
+```bash
+# 1. Setup credentials interactively
+make setup-credentials
+
+# 2. Fix permissions on credentials file
+make fix-permissions
+
+# 3. Configure systemd service
+make setup-systemd
+```
+
+## Managing Domains
+
+### Add/Remove Domains Interactively
+
+```bash
+make edit-domains
+```
+
+This opens an interactive menu where you can:
+- Add new domains
+- Remove (comment out) domains
+- Edit the config file directly
+- View all configured domains
+
+### Manual Domain Configuration
 
 Edit `domains.conf` and add your domains (one per line):
 ```
@@ -60,57 +115,74 @@ Each domain will automatically get both:
 - Base domain certificate (`example.com`)
 - Wildcard certificate (`*.example.com`)
 
-### 3. Update Systemd Service
+## Usage Commands
 
-Update the systemd service to use the new script:
+### Test Certificate Renewal
+
+Run a manual renewal (takes ~30 minutes):
 ```bash
-sudo systemctl edit certbot-netcup.service
+make test
 ```
 
-Set the ExecStart to:
-```ini
-[Service]
-ExecStart=/home/julian/certbot-netcup-automation/certbot-netcup-renew.sh
-```
+### Check Status
 
-Reload systemd and restart timer:
+View service and timer status:
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl restart certbot-netcup.timer
-```
-
-## Usage
-
-### Manual Run
-
-Test the renewal process:
-```bash
-sudo /home/julian/certbot-netcup-automation/certbot-netcup-renew.sh
-```
-
-### Check Automatic Schedule
-
-View timer status:
-```bash
-systemctl status certbot-netcup.timer
-```
-
-View next scheduled run:
-```bash
-systemctl list-timers certbot-netcup.timer
+make status
 ```
 
 ### View Logs
 
-Real-time log monitoring:
+Show recent logs:
 ```bash
-tail -f /var/log/certbot-netcup.log
+make logs
 ```
 
-Recent renewal history:
+Follow logs in real-time:
 ```bash
-journalctl -u certbot-netcup.service -n 50
+make logs-live
 ```
+
+### List Active Domains
+
+See which domains are configured:
+```bash
+make list-domains
+```
+
+### Verify Credentials
+
+Check if credentials are properly configured:
+```bash
+make verify-credentials
+```
+
+### List Installed Certificates
+
+See all certificates managed by certbot:
+```bash
+make list-certs
+```
+
+## Makefile Commands Reference
+
+| Command | Description |
+|---------|-------------|
+| `make help` | Show all available commands |
+| `make install` | Full installation (interactive setup) |
+| `make setup-credentials` | Configure Netcup API credentials |
+| `make edit-domains` | Interactive domain editor |
+| `make fix-permissions` | Fix credentials file permissions |
+| `make setup-systemd` | Configure systemd service |
+| `make test` | Run manual certificate renewal |
+| `make status` | Show service and timer status |
+| `make logs` | Show recent logs |
+| `make logs-live` | Follow logs in real-time |
+| `make list-domains` | List configured domains |
+| `make verify-credentials` | Check credentials configuration |
+| `make list-certs` | Show all installed certificates |
+| `make clean` | Remove lock files |
+| `make uninstall` | Remove systemd configuration |
 
 ## Configuration Options
 
@@ -123,14 +195,6 @@ Edit `config.sh` to customize:
 | `LOG_FILE` | `/var/log/certbot-netcup.log` | Log file path |
 | `CERTBOT_EMAIL` | `admin@julianw.de` | Email for Let's Encrypt notifications |
 | `CERTBOT_STAGING` | false | Use staging server for testing |
-
-## Adding/Removing Domains
-
-1. Edit `domains.conf`
-2. Add or remove domain lines (or comment out with `#`)
-3. Save the file
-4. Commit changes: `git add domains.conf && git commit -m "Updated domains"`
-5. Wait for next scheduled run, or run manually
 
 ## Troubleshooting
 
