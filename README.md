@@ -16,11 +16,14 @@ This tool automatically renews SSL certificates for all domains listed in `domai
 - 🔧 **Interactive setup** for credentials and domains
 - 🔄 **Configuration-based** domain management (no script editing)
 - 🌐 **Automatic wildcard** certificate support (*.domain.tld)
+- ⏰ **Smart renewal** - only renews certificates < X days from expiry
+- 📊 **Expiry tracking** - automatically updates domains.conf with expiry dates
 - ⚡ **Unified DNS propagation** timeout for all domains
 - 🔁 **Automatic Apache reload** after renewal
 - 📝 **Comprehensive logging** with easy access
 - 🔒 **Lock file** to prevent concurrent runs
 - 🐙 **Git version control** for configuration tracking
+- 📄 **YAML configuration** for easy customization
 
 ## Quick Start
 
@@ -50,14 +53,17 @@ make status
 ```
 certbot-netcup-automation/
 ├── certbot-netcup-renew.sh      # Main renewal script
-├── config.sh                     # Global configuration settings
-├── domains.conf                  # List of domains to manage
+├── config.yaml                   # YAML configuration (replaces config.sh)
+├── domains.conf                  # List of domains (auto-annotated with expiry)
 ├── Makefile                      # Installation and management commands
 ├── scripts/
 │   ├── setup-credentials-interactive.sh  # Interactive credentials wizard
 │   ├── setup-systemd.sh                  # Systemd service configurator
 │   ├── fix-permissions.sh                # Security permissions fixer
-│   └── edit-domains.sh                   # Interactive domain editor
+│   ├── edit-domains.sh                   # Interactive domain editor
+│   ├── check-expiry.sh                   # Certificate expiry checker
+│   ├── update-domains-expiry.sh          # Updates domains.conf with expiry info
+│   └── parse-yaml.sh                     # YAML config parser
 └── .gitignore                    # Protects sensitive files
 ```
 
@@ -179,6 +185,26 @@ Shows:
   - 🟡 Yellow (Soon): < 30 days
   - 🔴 Red (URGENT): < 7 days
 - Missing certificates for configured domains
+- **Automatically updates domains.conf with expiry information**
+
+**Example Output:**
+```
+Certificate                Days Left       Expiry Date               Status
+────────────────────────────────────────────────────────────────────────────────
+lisamae.de               56 days         2026-06-10                ✓ OK
+julianw.de               90 days         2026-07-14                ✓ OK
+wiche.eu                 25 days         2026-05-20                ⚠️  Soon
+```
+
+After running, your `domains.conf` will be updated:
+```bash
+# lisamae.de - Expires: 2026-06-10 (56 days) ✓
+lisamae.de
+# julianw.de - Expires: 2026-07-14 (90 days) ✓
+julianw.de
+# wiche.eu - Expires: 2026-05-20 (25 days) ⚠️
+wiche.eu
+```
 
 ## Makefile Commands Reference
 
@@ -201,17 +227,103 @@ Shows:
 | `make clean` | Remove lock files |
 | `make uninstall` | Remove systemd configuration |
 
-## Configuration Options
+## Configuration Files
 
-Edit `config.sh` to customize:
+### config.yaml
+
+Main configuration file with all settings:
+
+```yaml
+renewal:
+  # Renew certificates when they have less than this many days until expiry
+  renew_days_before: 30
+
+  # DNS propagation timeout (in seconds)
+  dns_propagation_timeout: 1800
+
+  # Email for Let's Encrypt notifications
+  email: admin@julianw.de
+
+  # Use staging server for testing
+  staging: false
+
+paths:
+  credentials: /var/lib/letsencrypt/netcup_credentials.ini
+  log: /var/log/certbot-netcup.log
+  domains: domains.conf
+
+docker:
+  image: coldfix/certbot-dns-netcup
+```
+
+### domains.conf
+
+Simple text file with one domain per line. After running `make check-expiry`, it will be automatically annotated with expiry dates:
+
+```bash
+# Certbot-Netcup Domain Configuration
+# Last expiry check: 2026-04-15 13:15:00
+
+# lisamae.de - Expires: 2026-06-10 (56 days) ✓
+lisamae.de
+# julianw.de - Expires: 2026-07-14 (90 days) ✓
+julianw.de
+# wiche.eu - Expires: 2026-05-20 (35 days) ✓
+wiche.eu
+```
+
+## Configuration Options (Deprecated)
+
+**Note:** `config.sh` has been replaced by `config.yaml`. If you still have `config.sh`, it will be ignored.
+
+Edit `config.yaml` to customize:
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `DNS_PROPAGATION_TIMEOUT` | 1800 | Seconds to wait for DNS changes |
-| `CREDENTIALS_FILE` | `/var/lib/letsencrypt/netcup_credentials.ini` | API credentials location |
-| `LOG_FILE` | `/var/log/certbot-netcup.log` | Log file path |
-| `CERTBOT_EMAIL` | `admin@julianw.de` | Email for Let's Encrypt notifications |
-| `CERTBOT_STAGING` | false | Use staging server for testing |
+| `renew_days_before` | 30 | **Renew certificates when less than X days remain** |
+| `dns_propagation_timeout` | 1800 | Seconds to wait for DNS changes |
+| `email` | `admin@julianw.de` | Email for Let's Encrypt notifications |
+| `staging` | false | Use staging server for testing |
+| `credentials` | `/var/lib/letsencrypt/netcup_credentials.ini` | API credentials location |
+| `log` | `/var/log/certbot-netcup.log` | Log file path |
+
+## How It Works
+
+### Smart Renewal Process
+
+1. **Daily Timer** triggers at 03:30
+2. **Script reads** `config.yaml` for settings (especially `renew_days_before`)
+3. **Checks expiry** of all configured domains
+4. **Filters domains** - only renews if < X days remaining
+5. **Runs certbot** via Docker for filtered domains only
+6. **Updates Apache** automatically after successful renewal
+7. **Logs everything** to `/var/log/certbot-netcup.log`
+
+### Example Scenario
+
+**Configuration:**
+```yaml
+renewal:
+  renew_days_before: 30
+```
+
+**Domains and Status:**
+- `lisamae.de` - 56 days until expiry → **SKIPPED** (> 30 days)
+- `julianw.de` - 90 days until expiry → **SKIPPED** (> 30 days)
+- `wiche.eu` - 25 days until expiry → **RENEWED** (< 30 days)
+
+Only `wiche.eu` will be renewed, saving time and API calls.
+
+### Expiry Tracking Workflow
+
+1. Run `make check-expiry`
+2. Script checks all certificate expiry dates
+3. Automatically updates `domains.conf` with comments:
+   ```bash
+   # wiche.eu - Expires: 2026-05-20 (25 days) ⚠️
+   wiche.eu
+   ```
+4. Next renewal run will see this and renew accordingly
 
 ## Troubleshooting
 

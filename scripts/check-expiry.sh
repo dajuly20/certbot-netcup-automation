@@ -99,6 +99,11 @@ echo -e "  ${YELLOW}⚠️  Soon${NC}    - Less than 30 days until expiry"
 echo -e "  ${RED}⚠️  URGENT${NC}  - Less than 7 days until expiry"
 echo ""
 
+# Update domains.conf with expiry information
+echo -e "${YELLOW}Updating domains.conf with expiry information...${NC}"
+"${SCRIPT_DIR}/scripts/update-domains-expiry.sh"
+echo ""
+
 # Check configured domains vs installed certs
 echo -e "${YELLOW}Checking configured domains in domains.conf...${NC}"
 echo ""
