@@ -1,4 +1,4 @@
-.PHONY: help install setup-credentials fix-permissions setup-systemd edit-domains edit-config test status logs logs-live clean uninstall verify-credentials list-domains list-certs check-expiry
+.PHONY: help install setup-credentials fix-permissions setup-systemd edit-domains edit-config test status logs logs-live clean uninstall verify-credentials list-domains list-certs check-expiry migrate-domains
 
 # Colors for output
 GREEN  := \033[0;32m
@@ -30,6 +30,7 @@ help:
 	@echo "  $(YELLOW)make verify-credentials$(NC) - Verify credentials configuration"
 	@echo "  $(YELLOW)make list-certs$(NC)         - Show installed certificates"
 	@echo "  $(YELLOW)make check-expiry$(NC)       - Check certificate expiry dates"
+	@echo "  $(YELLOW)make migrate-domains$(NC)    - Migrate from domains.conf to config.yaml"
 	@echo "  $(YELLOW)make clean$(NC)              - Remove lock files"
 	@echo "  $(YELLOW)make uninstall$(NC)          - Remove systemd configuration"
 	@echo ""
@@ -226,6 +227,10 @@ list-certs:
 
 check-expiry:
 	@./scripts/check-expiry.sh
+
+migrate-domains:
+	@echo "$(YELLOW)Migrating domains from domains.conf to config.yaml...$(NC)"
+	@./scripts/migrate-domains-to-yaml.sh
 
 # Hidden target for checking sudo
 check-sudo:

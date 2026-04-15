@@ -46,9 +46,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/scripts/parse-yaml.sh"
 parse_config "${SCRIPT_DIR}/config.yaml"
 parse_apache_reload_commands "${SCRIPT_DIR}/config.yaml"
-
-# Set domains file path
-DOMAINS_FILE="${SCRIPT_DIR}/${DOMAINS_FILE_NAME}"
+parse_domains "${SCRIPT_DIR}/config.yaml"
 
 # Logging function
 log() {
@@ -103,11 +101,6 @@ if [ ! -f "${CREDENTIALS_FILE}" ]; then
     error_exit "Credentials file not found: ${CREDENTIALS_FILE}"
 fi
 
-# Check if domains file exists
-if [ ! -f "${DOMAINS_FILE}" ]; then
-    error_exit "Domains configuration file not found: ${DOMAINS_FILE}"
-fi
-
 # Check if certbot is available (needed to check expiry)
 if ! command -v certbot &> /dev/null; then
     log "WARNING: certbot not found in PATH - will renew all domains without expiry check"
@@ -116,25 +109,12 @@ else
     SKIP_EXPIRY_CHECK=false
 fi
 
-# Read domains from config file (skip comments and empty lines)
-ALL_DOMAINS=()
-while IFS= read -r line || [ -n "$line" ]; do
-    # Skip comments and empty lines
-    [[ "$line" =~ ^[[:space:]]*# ]] && continue
-    [[ -z "${line// }" ]] && continue
-
-    # Trim whitespace
-    domain=$(echo "$line" | xargs)
-
-    if [ -n "$domain" ]; then
-        ALL_DOMAINS+=("$domain")
-    fi
-done < "${DOMAINS_FILE}"
-
 # Check if we have any domains
-if [ ${#ALL_DOMAINS[@]} -eq 0 ]; then
-    error_exit "No domains found in ${DOMAINS_FILE}"
+if [ ${#DOMAINS[@]} -eq 0 ]; then
+    error_exit "No domains found in config.yaml"
 fi
+
+ALL_DOMAINS=("${DOMAINS[@]}")
 
 log "Found ${#ALL_DOMAINS[@]} domains in configuration"
 

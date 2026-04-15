@@ -69,3 +69,53 @@ parse_apache_reload_commands() {
 
     export APACHE_RELOAD_CMDS
 }
+
+# Parse domains from YAML
+parse_domains() {
+    local config_file="${1:-config.yaml}"
+
+    DOMAINS=()
+
+    # Extract domain names from YAML
+    while IFS= read -r line; do
+        # Match lines like "  - name: example.com"
+        if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]*(.+)$ ]]; then
+            domain="${BASH_REMATCH[1]}"
+            DOMAINS+=("$domain")
+        fi
+    done < <(sed -n '/^domains:/,/^[a-z]/p' "$config_file" | grep "name:")
+
+    export DOMAINS
+}
+
+# Get expiry data for a specific domain
+get_domain_expiry() {
+    local domain="$1"
+    local config_file="${2:-config.yaml}"
+
+    # Extract expiry data for specific domain
+    local in_domain=false
+    local expires=""
+    local days_left=""
+
+    while IFS= read -r line; do
+        if [[ "$line" =~ name:[[:space:]]*$domain$ ]]; then
+            in_domain=true
+        elif [[ "$in_domain" == true ]]; then
+            if [[ "$line" =~ expires:[[:space:]]*(.+)$ ]]; then
+                expires="${BASH_REMATCH[1]}"
+            elif [[ "$line" =~ days_left:[[:space:]]*(.+)$ ]]; then
+                days_left="${BASH_REMATCH[1]}"
+                # Found both, we're done
+                echo "${expires}|${days_left}"
+                return
+            elif [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name: ]]; then
+                # Next domain started, stop
+                break
+            fi
+        fi
+    done < <(sed -n '/^domains:/,/^[a-z]/p' "$config_file")
+
+    echo "null|null"
+}
+

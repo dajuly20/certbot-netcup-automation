@@ -413,7 +413,8 @@ wiche.eu
 | `make list-domains` | List configured domains |
 | `make verify-credentials` | Check credentials configuration |
 | `make list-certs` | Show all installed certificates |
-| `make check-expiry` | Check certificate expiry dates with color-coded status |
+| `make check-expiry` | Check certificate expiry dates and update config.yaml |
+| `make migrate-domains` | Migrate old domains.conf to config.yaml format |
 | `make clean` | Remove lock files |
 | `make uninstall` | Remove systemd configuration |
 
@@ -446,21 +447,40 @@ docker:
   image: coldfix/certbot-dns-netcup
 ```
 
-### domains.conf
+### Domains in config.yaml
 
-Simple text file with one domain per line. After running `make check-expiry`, it will be automatically annotated with expiry dates:
+**NEW:** Domains are now managed directly in `config.yaml` with full expiry tracking:
 
-```bash
-# Certbot-Netcup Domain Configuration
-# Last expiry check: 2026-04-15 13:15:00
+```yaml
+domains:
+  - name: lisamae.de
+    expires: 2026-06-18
+    days_left: 63
+    urgency: "✓ OK"
+    last_checked: 2026-04-15T13:48:09
 
-# lisamae.de - Expires: 2026-06-10 (56 days) ✓
-lisamae.de
-# julianw.de - Expires: 2026-07-14 (90 days) ✓
-julianw.de
-# wiche.eu - Expires: 2026-05-20 (35 days) ✓
-wiche.eu
+  - name: julianw.de
+    expires: 2026-04-15
+    days_left: 0
+    urgency: "⚠️ URGENT"
+    last_checked: 2026-04-15T13:48:09
+
+  - name: wiche.eu
+    expires: 2026-07-14
+    days_left: 89
+    urgency: "✓ OK"
+    last_checked: 2026-04-15T13:48:09
 ```
+
+**Urgency levels:**
+- `✓ OK` - More than 30 days
+- `⚠️ Soon` - Less than 30 days
+- `⚠️ URGENT` - Less than 7 days
+- `❌ EXPIRED` - Certificate expired
+- `❌ No certificate` - Domain has no certificate yet
+- `❓ Not checked yet` - Initial state before first check
+
+**After running `make check-expiry`**, all fields are automatically updated!
 
 ## Configuration Options (Deprecated)
 

@@ -1,0 +1,19 @@
+# ⚠️ DEPRECATED: This file is no longer used! ⚠️
+#
+# Domains are now managed in config.yaml instead.
+#
+# To migrate your domains:
+#   make migrate-domains
+#
+# Or manually add them to config.yaml under the "domains:" section:
+#
+# domains:
+#   - name: example.com
+#     expires: null
+#     days_left: null
+#     urgency: "❓ Not checked yet"
+#     last_checked: null
+#
+# Then run: make check-expiry
+#
+# This file is kept for backward compatibility only.
