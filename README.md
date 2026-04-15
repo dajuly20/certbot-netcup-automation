@@ -164,6 +164,22 @@ See all certificates managed by certbot:
 make list-certs
 ```
 
+### Check Certificate Expiry
+
+View expiry dates for all certificates with color-coded status:
+```bash
+make check-expiry
+```
+
+Shows:
+- Days until expiry (negative if already expired)
+- Expiry date
+- Color-coded status:
+  - 🟢 Green (OK): > 30 days
+  - 🟡 Yellow (Soon): < 30 days
+  - 🔴 Red (URGENT): < 7 days
+- Missing certificates for configured domains
+
 ## Makefile Commands Reference
 
 | Command | Description |
@@ -181,6 +197,7 @@ make list-certs
 | `make list-domains` | List configured domains |
 | `make verify-credentials` | Check credentials configuration |
 | `make list-certs` | Show all installed certificates |
+| `make check-expiry` | Check certificate expiry dates with color-coded status |
 | `make clean` | Remove lock files |
 | `make uninstall` | Remove systemd configuration |
 

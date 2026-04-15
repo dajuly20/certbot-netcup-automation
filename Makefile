@@ -1,4 +1,4 @@
-.PHONY: help install setup-credentials fix-permissions setup-systemd edit-domains test status logs logs-live clean uninstall verify-credentials list-domains list-certs
+.PHONY: help install setup-credentials fix-permissions setup-systemd edit-domains test status logs logs-live clean uninstall verify-credentials list-domains list-certs check-expiry
 
 # Colors for output
 GREEN  := \033[0;32m
@@ -28,6 +28,7 @@ help:
 	@echo "  $(YELLOW)make list-domains$(NC)       - List configured domains"
 	@echo "  $(YELLOW)make verify-credentials$(NC) - Verify credentials configuration"
 	@echo "  $(YELLOW)make list-certs$(NC)         - Show installed certificates"
+	@echo "  $(YELLOW)make check-expiry$(NC)       - Check certificate expiry dates"
 	@echo "  $(YELLOW)make clean$(NC)              - Remove lock files"
 	@echo "  $(YELLOW)make uninstall$(NC)          - Remove systemd configuration"
 	@echo ""
@@ -151,6 +152,9 @@ list-domains:
 list-certs:
 	@echo "$(GREEN)Installed certificates:$(NC)"
 	@sudo certbot certificates 2>/dev/null || echo "$(RED)Certbot not found or no certificates$(NC)"
+
+check-expiry:
+	@./scripts/check-expiry.sh
 
 # Hidden target for checking sudo
 check-sudo:
