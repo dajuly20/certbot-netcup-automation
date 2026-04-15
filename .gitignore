@@ -1,0 +1,28 @@
+# Sensitive files - DO NOT COMMIT
+*.ini
+*credentials*
+*.key
+*.pem
+
+# Log files
+*.log
+logs/
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Lock files
+*.lock
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
