@@ -1,4 +1,4 @@
-.PHONY: help install setup-credentials fix-permissions setup-systemd edit-domains edit-config test status logs logs-live clean uninstall verify-credentials list-domains list-certs check-expiry migrate-domains
+.PHONY: help install setup-credentials fix-permissions setup-systemd edit-domains edit-config test status logs logs-live clean uninstall verify-credentials list-domains list-certs check-expiry
 
 # Colors for output
 GREEN  := \033[0;32m
@@ -30,7 +30,6 @@ help:
 	@echo "  $(YELLOW)make verify-credentials$(NC) - Verify credentials configuration"
 	@echo "  $(YELLOW)make list-certs$(NC)         - Show installed certificates"
 	@echo "  $(YELLOW)make check-expiry$(NC)       - Check certificate expiry dates"
-	@echo "  $(YELLOW)make migrate-domains$(NC)    - Migrate from domains.conf to config.yaml"
 	@echo "  $(YELLOW)make clean$(NC)              - Remove lock files"
 	@echo "  $(YELLOW)make uninstall$(NC)          - Remove systemd configuration"
 	@echo ""
@@ -48,9 +47,9 @@ install:
 	@$(MAKE) fix-permissions
 	@echo ""
 	@echo "$(YELLOW)Step 3/6: Configure Domains$(NC)"
-	@if [ -f "domains.conf" ] && [ -n "$$(grep -v '^#' domains.conf | grep -v '^[[:space:]]*$$')" ]; then \
+	@if [ -n "$$(sed -n '/^domains:/,/^[a-z]/p' config.yaml | grep 'name:')" ]; then \
 		echo "Current domains:"; \
-		grep -v '^#' domains.conf | grep -v '^[[:space:]]*$$' | nl -w2 -s'. '; \
+		sed -n '/^domains:/,/^[a-z]/p' config.yaml | grep "name:" | sed 's/.*name: //' | nl -w2 -s'. '; \
 		echo ""; \
 		read -p "Edit domains? [y/N] " -n 1 -r; \
 		echo; \
@@ -92,7 +91,7 @@ install:
 	@echo "$(GREEN)═══════════════════════════════════════════════════════$(NC)"
 	@echo ""
 	@echo "$(YELLOW)Configuration Summary:$(NC)"
-	@echo "  Domains:         $$(grep -v '^#' domains.conf | grep -v '^[[:space:]]*$$' | wc -l) domains configured"
+	@echo "  Domains:         $$(sed -n '/^domains:/,/^[a-z]/p' config.yaml | grep -c 'name:') domains configured"
 	@echo "  Renew threshold: $$(grep renew_days_before config.yaml | awk '{print $$2}') days"
 	@echo "  DNS timeout:     $$(grep dns_propagation_timeout config.yaml | awk '{print $$2}')s"
 	@echo "  Service:         certbot-netcup.timer (daily at 03:30)"
@@ -217,7 +216,8 @@ verify-credentials:
 
 list-domains:
 	@echo "$(GREEN)Active domains in configuration:$(NC)"
-	@grep -v '^#' $(SCRIPT_DIR)/domains.conf | grep -v '^[[:space:]]*$$' | nl -w2 -s'. ' || echo "No domains configured"
+	@echo ""
+	@sed -n '/^domains:/,/^[a-z]/p' config.yaml | grep "name:" | sed 's/.*name: //' | nl -w2 -s'. ' || echo "No domains configured"
 	@echo ""
 	@echo "$(YELLOW)Each domain gets: example.com + *.example.com$(NC)"
 
@@ -227,10 +227,6 @@ list-certs:
 
 check-expiry:
 	@./scripts/check-expiry.sh
-
-migrate-domains:
-	@echo "$(YELLOW)Migrating domains from domains.conf to config.yaml...$(NC)"
-	@./scripts/migrate-domains-to-yaml.sh
 
 # Hidden target for checking sudo
 check-sudo:

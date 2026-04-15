@@ -81,8 +81,7 @@ make status
 ```
 certbot-netcup-automation/
 ├── certbot-netcup-renew.sh      # Main renewal script
-├── config.yaml                   # YAML configuration (replaces config.sh)
-├── domains.conf                  # List of domains (auto-annotated with expiry)
+├── config.yaml                   # YAML configuration (domains + settings)
 ├── Makefile                      # Installation and management commands
 ├── scripts/
 │   ├── setup-credentials-interactive.sh  # Interactive credentials wizard
@@ -90,7 +89,7 @@ certbot-netcup-automation/
 │   ├── fix-permissions.sh                # Security permissions fixer
 │   ├── edit-domains.sh                   # Interactive domain editor
 │   ├── check-expiry.sh                   # Certificate expiry checker
-│   ├── update-domains-expiry.sh          # Updates domains.conf with expiry info
+│   ├── update-config-expiry.sh           # Updates config.yaml with expiry info
 │   └── parse-yaml.sh                     # YAML config parser
 └── .gitignore                    # Protects sensitive files
 ```
@@ -177,20 +176,25 @@ make edit-domains
 # OR manually:
 ./scripts/edit-domains.sh
 # OR edit directly:
-nano domains.conf
+nano config.yaml
 ```
 
 **What happens:**
-- Opens interactive menu (if using script)
-- You can add/remove domains
-- Format: One domain per line (no wildcards needed)
-- Example:
-  ```
-  lisamae.de
-  julianw.de
-  wiche.eu
-  ```
-- Each domain automatically gets base + wildcard cert (e.g., `example.com` + `*.example.com`)
+- Opens interactive menu showing current domains with expiry status
+- You can add/remove domains directly in config.yaml
+- Each domain automatically gets:
+  - Base domain certificate (e.g., `example.com`)
+  - Wildcard certificate (e.g., `*.example.com`)
+  - Expiry tracking fields (updated by `make check-expiry`)
+
+**Interactive menu:**
+```
+1) Add a new domain
+2) Remove a domain
+3) Edit config.yaml manually
+4) Show all domains with details
+5) OK - Keep as is (Exit)
+```
 
 #### Step 4: Review/Edit Configuration
 
@@ -414,7 +418,6 @@ wiche.eu
 | `make verify-credentials` | Check credentials configuration |
 | `make list-certs` | Show all installed certificates |
 | `make check-expiry` | Check certificate expiry dates and update config.yaml |
-| `make migrate-domains` | Migrate old domains.conf to config.yaml format |
 | `make clean` | Remove lock files |
 | `make uninstall` | Remove systemd configuration |
 
@@ -482,11 +485,9 @@ domains:
 
 **After running `make check-expiry`**, all fields are automatically updated!
 
-## Configuration Options (Deprecated)
+## Configuration Options
 
-**Note:** `config.sh` has been replaced by `config.yaml`. If you still have `config.sh`, it will be ignored.
-
-Edit `config.yaml` to customize:
+Edit `config.yaml` to customize all settings:
 
 | Option | Default | Description |
 |--------|---------|-------------|

@@ -36,7 +36,7 @@ domains:
 renewal:
   # Renew certificates when they have less than this many days until expiry
   # Default: 30 (Let's Encrypt recommends renewing at 30 days)
-  renew_days_before: 30
+  renew_days_before: 10
 
   # DNS propagation timeout (in seconds)
   # How long to wait for DNS changes to propagate before validating

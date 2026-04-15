@@ -38,7 +38,6 @@ parse_config() {
     CREDENTIALS_FILE=${CREDENTIALS_FILE:-/var/lib/letsencrypt/netcup_credentials.ini}
     LOG_FILE=${LOG_FILE:-/var/log/certbot-netcup.log}
     LOCK_FILE=${LOCK_FILE:-/var/run/certbot-netcup.lock}
-    DOMAINS_FILE_NAME=${DOMAINS_FILE_NAME:-domains.conf}
     DOCKER_IMAGE=${DOCKER_IMAGE:-coldfix/certbot-dns-netcup}
 
     # Export for use in scripts
