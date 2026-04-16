@@ -14,7 +14,11 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DOMAINS_FILE="${SCRIPT_DIR}/domains.conf"
+CONFIG_FILE="${SCRIPT_DIR}/config.yaml"
+
+# Source YAML parser to get domains
+source "${SCRIPT_DIR}/scripts/parse-yaml.sh"
+parse_domains "$CONFIG_FILE"
 
 echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}"
 echo -e "${BLUE}  SSL Certificate Expiry Check${NC}"
@@ -105,27 +109,19 @@ echo -e "${YELLOW}Updating config.yaml with expiry information...${NC}"
 echo ""
 
 # Check configured domains vs installed certs
-echo -e "${YELLOW}Checking configured domains in domains.conf...${NC}"
+echo -e "${YELLOW}Checking configured domains in config.yaml...${NC}"
 echo ""
 
 MISSING_CERTS=()
-while IFS= read -r line || [ -n "$line" ]; do
-    # Skip comments and empty lines
-    [[ "$line" =~ ^[[:space:]]*# ]] && continue
-    [[ -z "${line// }" ]] && continue
-
-    domain=$(echo "$line" | xargs)
-
-    if [ -n "$domain" ]; then
-        # Check if certificate exists for this domain
-        if ! echo "$CERT_INFO" | grep -q "$domain"; then
-            MISSING_CERTS+=("$domain")
-        fi
+for domain in "${DOMAINS[@]}"; do
+    # Check if certificate exists for this domain
+    if ! echo "$CERT_INFO" | grep -q "$domain"; then
+        MISSING_CERTS+=("$domain")
     fi
-done < "$DOMAINS_FILE"
+done
 
 if [ ${#MISSING_CERTS[@]} -gt 0 ]; then
-    echo -e "${YELLOW}⚠️  The following domains in domains.conf don't have certificates yet:${NC}"
+    echo -e "${YELLOW}⚠️  The following domains in config.yaml don't have certificates yet:${NC}"
     for missing in "${MISSING_CERTS[@]}"; do
         echo "  - $missing"
     done
