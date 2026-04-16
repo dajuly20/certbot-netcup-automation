@@ -50,6 +50,13 @@ renewal:
   # Set to true for testing, false for production certificates
   staging: false
 
+# Systemd timer configuration
+systemd:
+  # When to run automatic renewal checks
+  # Examples: "03:30" (daily at 3:30 AM), "Mon 02:00" (Mondays at 2 AM), "*:0/15" (every 15 minutes)
+  # See: man systemd.time for more formats
+  schedule: "03:30"
+
 # File paths
 paths:
   # Netcup API credentials file location
@@ -77,3 +84,31 @@ apache:
     - systemctl reload apache2
     - service apache2 reload
     - apachectl graceful
+
+# Remote hosts to sync certificates to
+remote_hosts:
+  # Enable/disable certificate syncing to remote hosts
+  enabled: false
+
+  # List of remote hosts to sync certificates to
+  # Requires passwordless root SSH access (use: ssh-copy-id root@hostname)
+  hosts:
+    # - hostname: example.com
+    #   user: root
+    #
+    # - hostname: 192.168.1.100
+    #   user: root
+
+  # Sync settings
+  sync:
+    # Path to sync (source on this host)
+    source_path: /etc/letsencrypt/
+
+    # Path to sync to (destination on remote hosts)
+    destination_path: /etc/letsencrypt/
+
+    # Rsync options
+    rsync_options: "-avz --delete"
+
+    # Reload Apache on remote hosts after sync
+    reload_remote_apache: true

@@ -16,10 +16,10 @@ parse_config() {
     # More robust would be yq/jq but we want to avoid dependencies
 
     # Renewal settings
-    RENEW_DAYS_BEFORE=$(grep -A1 "^renewal:" "$config_file" | grep "renew_days_before:" | sed 's/.*: *//')
-    DNS_PROPAGATION_TIMEOUT=$(grep "dns_propagation_timeout:" "$config_file" | sed 's/.*: *//')
-    CERTBOT_EMAIL=$(grep "email:" "$config_file" | sed 's/.*: *//')
-    CERTBOT_STAGING=$(grep "staging:" "$config_file" | sed 's/.*: *//')
+    RENEW_DAYS_BEFORE=$(grep -A10 "^renewal:" "$config_file" | grep "renew_days_before:" | sed 's/.*: *//')
+    DNS_PROPAGATION_TIMEOUT=$(grep -A10 "^renewal:" "$config_file" | grep "dns_propagation_timeout:" | sed 's/.*: *//')
+    CERTBOT_EMAIL=$(grep -A10 "^renewal:" "$config_file" | grep "email:" | sed 's/.*: *//')
+    CERTBOT_STAGING=$(grep -A10 "^renewal:" "$config_file" | grep "staging:" | sed 's/.*: *//')
 
     # Paths
     CREDENTIALS_FILE=$(grep -A5 "^paths:" "$config_file" | grep "credentials:" | sed 's/.*: *//')
@@ -30,6 +30,9 @@ parse_config() {
     # Docker
     DOCKER_IMAGE=$(grep -A2 "^docker:" "$config_file" | grep "image:" | sed 's/.*: *//')
 
+    # Systemd
+    SYSTEMD_SCHEDULE=$(grep -A5 "^systemd:" "$config_file" | grep "schedule:" | sed 's/.*: *//' | tr -d '"')
+
     # Set defaults if not found
     RENEW_DAYS_BEFORE=${RENEW_DAYS_BEFORE:-30}
     DNS_PROPAGATION_TIMEOUT=${DNS_PROPAGATION_TIMEOUT:-1800}
@@ -39,6 +42,7 @@ parse_config() {
     LOG_FILE=${LOG_FILE:-/var/log/certbot-netcup.log}
     LOCK_FILE=${LOCK_FILE:-/var/run/certbot-netcup.lock}
     DOCKER_IMAGE=${DOCKER_IMAGE:-coldfix/certbot-dns-netcup}
+    SYSTEMD_SCHEDULE=${SYSTEMD_SCHEDULE:-03:30}
 
     # Export for use in scripts
     export RENEW_DAYS_BEFORE
@@ -50,6 +54,7 @@ parse_config() {
     export LOCK_FILE
     export DOMAINS_FILE_NAME
     export DOCKER_IMAGE
+    export SYSTEMD_SCHEDULE
 }
 
 # Parse Apache reload commands from YAML
@@ -116,5 +121,66 @@ get_domain_expiry() {
     done < <(sed -n '/^domains:/,/^[a-z]/p' "$config_file")
 
     echo "null|null"
+}
+
+# Parse remote hosts configuration from YAML
+parse_remote_hosts() {
+    local config_file="${1:-config.yaml}"
+
+    # Remote sync enabled
+    REMOTE_SYNC_ENABLED=$(grep -A20 "^remote_hosts:" "$config_file" | grep "enabled:" | sed 's/.*: *//')
+    REMOTE_SYNC_ENABLED=${REMOTE_SYNC_ENABLED:-false}
+
+    # Remote sync settings
+    REMOTE_SOURCE_PATH=$(grep -A30 "^remote_hosts:" "$config_file" | grep "source_path:" | sed 's/.*: *//')
+    REMOTE_DESTINATION_PATH=$(grep -A30 "^remote_hosts:" "$config_file" | grep "destination_path:" | sed 's/.*: *//')
+    REMOTE_RSYNC_OPTIONS=$(grep -A30 "^remote_hosts:" "$config_file" | grep "rsync_options:" | sed 's/.*: *//' | tr -d '"')
+    REMOTE_RELOAD_APACHE=$(grep -A30 "^remote_hosts:" "$config_file" | grep "reload_remote_apache:" | sed 's/.*: *//')
+
+    # Set defaults
+    REMOTE_SOURCE_PATH=${REMOTE_SOURCE_PATH:-/etc/letsencrypt/}
+    REMOTE_DESTINATION_PATH=${REMOTE_DESTINATION_PATH:-/etc/letsencrypt/}
+    REMOTE_RSYNC_OPTIONS=${REMOTE_RSYNC_OPTIONS:--avz --delete}
+    REMOTE_RELOAD_APACHE=${REMOTE_RELOAD_APACHE:-true}
+
+    # Parse host list
+    REMOTE_HOSTS=()
+
+    # Extract hosts section
+    local in_hosts=false
+    while IFS= read -r line; do
+        # Check if we're entering the hosts section
+        if [[ "$line" =~ ^[[:space:]]*hosts:[[:space:]]*$ ]]; then
+            in_hosts=true
+            continue
+        fi
+
+        # Stop if we hit another section
+        if [[ "$in_hosts" == true ]] && [[ "$line" =~ ^[[:space:]]*[a-z_]+:[[:space:]]* ]] && [[ ! "$line" =~ ^[[:space:]]*- ]]; then
+            break
+        fi
+
+        # Parse host entries
+        if [[ "$in_hosts" == true ]]; then
+            # Match hostname line
+            if [[ "$line" =~ hostname:[[:space:]]*(.+)$ ]]; then
+                hostname="${BASH_REMATCH[1]}"
+                # Read next line for user
+                read -r next_line
+                if [[ "$next_line" =~ user:[[:space:]]*(.+)$ ]]; then
+                    user="${BASH_REMATCH[1]}"
+                    REMOTE_HOSTS+=("${user}@${hostname}")
+                fi
+            fi
+        fi
+    done < <(grep -A50 "^remote_hosts:" "$config_file")
+
+    # Export for use in scripts
+    export REMOTE_SYNC_ENABLED
+    export REMOTE_SOURCE_PATH
+    export REMOTE_DESTINATION_PATH
+    export REMOTE_RSYNC_OPTIONS
+    export REMOTE_RELOAD_APACHE
+    export REMOTE_HOSTS
 }
 

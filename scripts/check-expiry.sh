@@ -130,7 +130,7 @@ if [ ${#MISSING_CERTS[@]} -gt 0 ]; then
         echo "  - $missing"
     done
     echo ""
-    echo -e "${YELLOW}Run 'make test' to generate certificates for these domains${NC}"
+    echo -e "${YELLOW}Run 'make renew-dryrun' to generate certificates for these domains${NC}"
 else
     echo -e "${GREEN}✓ All configured domains have certificates${NC}"
 fi

@@ -183,7 +183,7 @@ Permissions: 600 (read/write for root only)
 
 Next steps:
 1. Edit domains.conf to add your domains
-2. Run: make test
+2. Run: make renew-dryrun
 3. Check logs: make logs"
 
 if [ -n "$DIALOG" ]; then

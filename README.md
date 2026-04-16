@@ -13,6 +13,7 @@ Automated SSL/TLS certificate renewal for multiple domains using Netcup DNS-01 c
   - [Step-by-Step Manual Execution](#step-by-step-manual-execution)
 - [Files Structure](#files-structure)
 - [Managing Domains](#managing-domains)
+- [Remote Host Certificate Sync](#remote-host-certificate-sync)
 - [Usage Commands](#usage-commands)
 - [Configuration Files](#configuration-files)
 - [Makefile Commands Reference](#makefile-commands-reference)
@@ -48,6 +49,7 @@ This tool automatically renews SSL certificates for all domains listed in `domai
 - 📊 **Expiry tracking** - automatically updates domains.conf with expiry dates
 - ⚡ **Unified DNS propagation** timeout for all domains
 - 🔁 **Automatic Apache reload** after renewal
+- 🔄 **Remote host sync** - automatically push certificates to multiple servers
 - 📝 **Comprehensive logging** with easy access
 - 🔒 **Lock file** to prevent concurrent runs
 - 🐙 **Git version control** for configuration tracking
@@ -70,7 +72,7 @@ make install
 make edit-domains
 
 # Test the setup
-make test
+make renew-dryrun
 
 # Check status
 make status
@@ -90,6 +92,7 @@ certbot-netcup-automation/
 │   ├── edit-domains.sh                   # Interactive domain editor
 │   ├── check-expiry.sh                   # Certificate expiry checker
 │   ├── update-config-expiry.sh           # Updates config.yaml with expiry info
+│   ├── sync-certs.sh                     # Remote certificate sync
 │   └── parse-yaml.sh                     # YAML config parser
 └── .gitignore                    # Protects sensitive files
 ```
@@ -102,13 +105,12 @@ certbot-netcup-automation/
 make install
 ```
 
-This will guide you through **all 6 steps**:
+This will guide you through **all setup steps**:
 1. **Setup API Credentials** - Interactive wizard for Netcup credentials
-2. **Fix File Permissions** - Secure your credentials file
-3. **Configure Domains** - Interactive domain editor
-4. **Review Configuration** - Optional config.yaml editing
-5. **Setup Systemd Service** - Configure automatic daily renewal
-6. **Verify Installation** - Check that everything is configured correctly
+2. **Configure Domains** - Interactive domain editor
+3. **Review Configuration** - Optional config.yaml editing (schedule, thresholds, etc.)
+4. **Setup Systemd Service** - Configure automatic renewal timer
+5. **Verify Installation** - Check that everything is configured correctly
 
 The installer will show you a summary at the end with:
 - Number of configured domains
@@ -121,14 +123,16 @@ The installer will show you a summary at the end with:
 If you prefer to set up manually:
 
 ```bash
-# 1. Setup credentials interactively
+# Setup interactively (handles all steps)
+make install
+
+# Or manually:
+# 1. Setup credentials
 make setup-credentials
-
-# 2. Fix permissions on credentials file
-make fix-permissions
-
-# 3. Configure systemd service
-make setup-systemd
+# 2. Edit domains
+make edit-domains
+# 3. Review/edit config.yaml
+nano config.yaml
 ```
 
 ### Step-by-Step Manual Execution
@@ -155,21 +159,7 @@ sudo ./scripts/setup-credentials-interactive.sh
 3. Create a new API key
 4. Copy: Customer ID, API Key, API Password
 
-#### Step 2: Fix File Permissions
-
-```bash
-make fix-permissions
-# OR manually:
-sudo ./scripts/fix-permissions.sh
-```
-
-**What happens:**
-- Checks `/var/lib/letsencrypt/netcup_credentials.ini`
-- Changes permissions to 600 (only root can read/write)
-- Changes owner to root:root
-- Eliminates the "Unsafe permissions" warning
-
-#### Step 3: Configure Your Domains
+#### Step 2: Configure Your Domains
 
 ```bash
 make edit-domains
@@ -196,11 +186,9 @@ nano config.yaml
 5) OK - Keep as is (Exit)
 ```
 
-#### Step 4: Review/Edit Configuration
+#### Step 3: Review/Edit Configuration
 
 ```bash
-make edit-config
-# OR manually:
 nano config.yaml
 ```
 
@@ -221,30 +209,17 @@ renewal:
   staging: false
 ```
 
-#### Step 5: Setup Systemd Service
+**Key settings to review:**
+- `renew_days_before: 10` - When to renew (days before expiry)
+- `dns_propagation_timeout: 1800` - DNS wait time (30 minutes)
+- `email: your@email.com` - Your notification email
+- `staging: false` - Set to `true` for testing
+- `systemd.schedule: "03:30"` - When to run automatic checks (daily at 3:30 AM)
+
+#### Step 4: Test Your Setup
 
 ```bash
-make setup-systemd
-# OR manually:
-sudo ./scripts/setup-systemd.sh
-```
-
-**What happens:**
-- Creates systemd override configuration
-- Points service to your renewal script
-- Reloads systemd daemon
-- Shows service status
-
-**Service details:**
-- Service: `certbot-netcup.service`
-- Timer: `certbot-netcup.timer`
-- Schedule: Daily at 03:30
-- Script: `/home/julian/certbot-netcup-automation/certbot-netcup-renew.sh`
-
-#### Step 6: Test Your Setup
-
-```bash
-make test
+make renew-dryrun
 # OR manually:
 sudo systemctl start certbot-netcup.service
 ```
@@ -267,12 +242,10 @@ sudo systemctl start certbot-netcup.service
 **Monitor progress:**
 ```bash
 # In another terminal:
-make logs-live
-# OR:
 tail -f /var/log/certbot-netcup.log
 ```
 
-#### Step 7: Check Results
+#### Step 5: Check Results
 
 ```bash
 # Check expiry dates (and update domains.conf)
@@ -314,13 +287,102 @@ Each domain will automatically get both:
 - Base domain certificate (`example.com`)
 - Wildcard certificate (`*.example.com`)
 
+## Remote Host Certificate Sync
+
+Automatically push certificates to remote servers after renewal. This is useful for multi-server setups where you want to centrally manage certificates.
+
+### Requirements
+
+- Passwordless root SSH access to remote hosts
+- Remote hosts must have `/etc/letsencrypt/` directory (will be created automatically)
+- `rsync` installed on the local machine
+
+### Setup Remote Host Sync
+
+#### 1. Add a Remote Host
+
+```bash
+make add-remote-host
+```
+
+This will:
+- Prompt for hostname/IP and SSH user
+- Test SSH connectivity
+- Set up passwordless SSH if needed (via `ssh-copy-id`)
+- Add the host to `config.yaml`
+- Enable remote sync automatically
+
+#### 2. List Configured Remote Hosts
+
+```bash
+make list-remote-hosts
+```
+
+#### 3. Manual Certificate Sync
+
+To manually sync certificates to all configured hosts:
+
+```bash
+make sync-certs
+```
+
+### Configuration
+
+Remote host settings are in `config.yaml`:
+
+```yaml
+remote_hosts:
+  enabled: true  # Set to true to enable syncing
+
+  hosts:
+    - hostname: server1.example.com
+      user: root
+
+    - hostname: 192.168.1.100
+      user: root
+
+  sync:
+    source_path: /etc/letsencrypt/
+    destination_path: /etc/letsencrypt/
+    rsync_options: "-avz --delete"
+    reload_remote_apache: true  # Reload Apache on remote hosts after sync
+```
+
+### How It Works
+
+1. After successful certificate renewal, the script checks if remote sync is enabled
+2. For each configured host:
+   - Verifies SSH access
+   - Creates destination directory if needed
+   - Syncs `/etc/letsencrypt/` using rsync
+   - Optionally reloads Apache on the remote host
+3. Logs all operations to `/var/log/certbot-netcup.log`
+
+### Manual SSH Setup
+
+If `make add-remote-host` doesn't work, manually set up SSH access:
+
+```bash
+# Generate SSH key if you don't have one
+ssh-keygen -t rsa -b 4096
+
+# Copy key to remote host
+ssh-copy-id root@remote-host.example.com
+
+# Test connection
+ssh root@remote-host.example.com 'exit 0'
+```
+
+Then manually add the host to `config.yaml` under the `remote_hosts` section.
+
 ## Usage Commands
 
 ### Test Certificate Renewal
 
 Run a manual renewal (takes ~30 minutes):
 ```bash
-make test
+make renew-dryrun  # Test/dry-run mode
+make renew         # Production renewal
 ```
 
 ### Check Status
@@ -339,28 +401,7 @@ make logs
 
 Follow logs in real-time:
 ```bash
-make logs-live
-```
-
-### List Active Domains
-
-See which domains are configured:
-```bash
-make list-domains
-```
-
-### Verify Credentials
-
-Check if credentials are properly configured:
-```bash
-make verify-credentials
-```
-
-### List Installed Certificates
-
-See all certificates managed by certbot:
-```bash
-make list-certs
+sudo tail -f /var/log/certbot-netcup.log
 ```
 
 ### Check Certificate Expiry
@@ -401,23 +442,33 @@ wiche.eu
 
 ## Makefile Commands Reference
 
+### Main Commands
 | Command | Description |
 |---------|-------------|
-| `make help` | Show all available commands |
-| `make install` | **Full guided installation (all steps)** |
-| `make setup-credentials` | Configure Netcup API credentials |
-| `make edit-domains` | Interactive domain editor |
-| `make edit-config` | Edit config.yaml settings |
-| `make fix-permissions` | Fix credentials file permissions |
-| `make setup-systemd` | Configure systemd service |
-| `make test` | Run manual certificate renewal |
-| `make status` | Show service and timer status |
-| `make logs` | Show recent logs |
-| `make logs-live` | Follow logs in real-time |
-| `make list-domains` | List configured domains |
-| `make verify-credentials` | Check credentials configuration |
-| `make list-certs` | Show all installed certificates |
-| `make check-expiry` | Check certificate expiry dates and update config.yaml |
+| `make install` | **Full guided installation** |
+| `make renew-dryrun` | Test: show what would be renewed |
+| `make renew` | Actually renew certificates now |
+| `make status` | Show service status & next run |
+| `make logs` | Show logs (tip: `tail -f` to follow) |
+| `make check-expiry` | Check certificate expiry dates |
+
+### Configuration
+| Command | Description |
+|---------|-------------|
+| `make setup-credentials` | Reconfigure Netcup API credentials |
+| `make edit-domains` | Edit domains interactively |
+| `nano config.yaml` | Edit all settings (schedule, thresholds, etc.) |
+
+### Remote Sync
+| Command | Description |
+|---------|-------------|
+| `make add-remote-host` | Add a remote host for cert sync |
+| `make list-remote-hosts` | List configured remote hosts |
+| `make sync-certs` | Manually sync certs to remote hosts |
+
+### Other
+| Command | Description |
+|---------|-------------|
 | `make clean` | Remove lock files |
 | `make uninstall` | Remove systemd configuration |
 
@@ -502,7 +553,7 @@ Edit `config.yaml` to customize all settings:
 
 ### Smart Renewal Process
 
-1. **Daily Timer** triggers at 03:30
+1. **Automatic Timer** triggers (default: 03:30, configurable in config.yaml)
 2. **Script reads** `config.yaml` for settings (especially `renew_days_before`)
 3. **Checks expiry** of all configured domains
 4. **Filters domains** - only renews if < X days remaining
@@ -538,7 +589,7 @@ Only `wiche.eu` will be renewed, saving time and API calls.
 
 ### What Happens During Automatic Runs
 
-Every day at **03:30**, the systemd timer triggers:
+The systemd timer triggers (default: daily at 03:30, configurable):
 
 #### Automatic Execution Flow:
 
@@ -632,7 +683,7 @@ make check-expiry
 
 The script respects certbot's `--keep-until-expiring` flag. To force renewal:
 1. Temporarily set `renew_days_before: 90` in `config.yaml`
-2. Run `make test`
+2. Run `make renew-dryrun`
 3. Change it back to `30` afterwards
 
 Or use certbot directly:
@@ -646,7 +697,7 @@ sudo certbot renew --force-renewal
 make edit-domains
 # Add your domain in the interactive menu
 # Then run:
-make test
+make renew-dryrun
 ```
 
 ### Can I test without affecting production?
@@ -656,7 +707,7 @@ Yes! Edit `config.yaml` and set:
 staging: true
 ```
 
-Run `make test`, then check it worked. Set back to `false` for production.
+Run `make renew-dryrun`, then check it worked. Set back to `false` for production.
 
 ### How long does renewal take?
 
@@ -674,8 +725,8 @@ Run `make test`, then check it worked. Set back to `false` for production.
 ### How do I view logs?
 
 ```bash
-make logs          # Recent logs
-make logs-live     # Follow in real-time
+make logs                                     # Recent logs
+sudo tail -f /var/log/certbot-netcup.log     # Follow in real-time
 journalctl -u certbot-netcup.service -n 100  # Systemd logs
 ```
 
@@ -725,9 +776,19 @@ To test without affecting production certificates:
 
 ## Schedule
 
-The renewal runs **daily at 03:30** via systemd timer.
+The renewal runs automatically via systemd timer. The schedule is configurable in `config.yaml`:
 
-Certbot will only renew certificates within 30 days of expiration (Let's Encrypt default).
+```yaml
+systemd:
+  schedule: "03:30"  # Daily at 3:30 AM (default)
+```
+
+You can change this to any valid systemd timer format:
+- `"03:30"` - Daily at 3:30 AM
+- `"Mon 02:00"` - Mondays at 2 AM
+- `"*:0/15"` - Every 15 minutes
+
+After changing, run `make install` to apply the new schedule.
 
 ## Git Workflow
 

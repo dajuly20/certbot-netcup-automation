@@ -6,6 +6,13 @@
 # using Netcup DNS-01 challenge via Docker
 #
 
+# Parse command line arguments
+DRY_RUN=false
+if [[ "$1" == "--dry-run" ]]; then
+    DRY_RUN=true
+    shift
+fi
+
 # Show usage if --help or -h is passed
 if [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
     cat << 'EOF'
@@ -18,6 +25,7 @@ domains.conf, but only if they are within the renewal threshold (configured
 in config.yaml).
 
 Options:
+  --dry-run      Show which domains would be renewed without actually renewing
   -h, --help     Show this help message
 
 Configuration:
@@ -28,10 +36,11 @@ Configuration:
 Typically this script is run automatically via systemd timer.
 For manual usage, use the Makefile instead:
 
-  make test      Run manual renewal
-  make status    Check service status
-  make logs      View recent logs
-  make help      Show all available commands
+  make renew-dryrun  Run manual renewal (test/dry-run)
+  make renew         Run manual renewal (production)
+  make status        Check service status
+  make logs          View recent logs
+  make help          Show all available commands
 
 EOF
     exit 0
@@ -183,6 +192,17 @@ fi
 
 log "Will renew ${#DOMAINS_TO_RENEW[@]} domain(s): ${DOMAINS_TO_RENEW[*]}"
 
+# If dry-run mode, exit here
+if [ "$DRY_RUN" = true ]; then
+    log "==== DRY-RUN MODE - No actual renewal will be performed ===="
+    log "The following domains would be renewed:"
+    for domain in "${DOMAINS_TO_RENEW[@]}"; do
+        log "  - ${domain} (with wildcard *.${domain})"
+    done
+    log "==== Dry-run completed ===="
+    exit 0
+fi
+
 # Build certbot domain arguments
 DOMAIN_ARGS=""
 for domain in "${DOMAINS_TO_RENEW[@]}"; do
@@ -247,8 +267,22 @@ done
 
 if [ "${APACHE_RELOADED}" = false ]; then
     log "WARNING: Could not reload Apache automatically. Please reload manually."
-else
-    log "==== Certificate renewal completed successfully ===="
 fi
+
+# Sync certificates to remote hosts if enabled
+parse_remote_hosts "${SCRIPT_DIR}/config.yaml"
+
+if [ "${REMOTE_SYNC_ENABLED}" = "true" ] && [ ${#REMOTE_HOSTS[@]} -gt 0 ]; then
+    log "==== Syncing certificates to remote hosts ===="
+
+    # Run the sync script
+    if "${SCRIPT_DIR}/scripts/sync-certs.sh"; then
+        log "Certificate sync completed successfully"
+    else
+        log "WARNING: Certificate sync failed - check logs for details"
+    fi
+fi
+
+log "==== Certificate renewal completed successfully ===="
 
 exit 0
