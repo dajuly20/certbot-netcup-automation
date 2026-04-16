@@ -31,7 +31,7 @@ parse_config() {
     DOCKER_IMAGE=$(grep -A2 "^docker:" "$config_file" | grep "image:" | sed 's/.*: *//')
 
     # Systemd
-    SYSTEMD_SCHEDULE=$(grep -A5 "^systemd:" "$config_file" | grep "schedule:" | sed 's/.*: *//' | tr -d '"')
+    SYSTEMD_SCHEDULE=$(grep -A5 "^systemd:" "$config_file" | grep "schedule:" | sed 's/^[^:]*:[[:space:]]*//' | tr -d '"')
 
     # Set defaults if not found
     RENEW_DAYS_BEFORE=${RENEW_DAYS_BEFORE:-30}

@@ -1,3 +1,5 @@
+SHELL := /bin/bash
+
 .PHONY: help install setup-credentials edit-domains renew-dryrun renew status logs check-expiry add-remote-host list-remote-hosts sync-certs clean uninstall
 
 # Colors for output
@@ -182,10 +184,6 @@ uninstall:
 	else \
 		echo "$(YELLOW)Uninstall cancelled.$(NC)"; \
 	fi
-
-check-expiry:
-	@echo "$(GREEN)Installed certificates:$(NC)"
-	@sudo certbot certificates 2>/dev/null || echo "$(RED)Certbot not found or no certificates$(NC)"
 
 check-expiry:
 	@./scripts/check-expiry.sh
