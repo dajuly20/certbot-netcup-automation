@@ -283,6 +283,14 @@ if [ "${REMOTE_SYNC_ENABLED}" = "true" ] && [ ${#REMOTE_HOSTS[@]} -gt 0 ]; then
     fi
 fi
 
+# Sync certificates to htz3.wiche.eu (Asterisk) via unprivileged SSH + sudo-scoped rsync
+log "==== Syncing certificates to htz3.wiche.eu (Asterisk) ===="
+if /home/julian/BashScripts/scripts/sync_asterisk_letsencrypt_certs_to_htz.sh; then
+    log "Asterisk cert sync completed successfully"
+else
+    log "WARNING: Asterisk cert sync failed - check /home/julian/BashScripts/logs/push-certs.log"
+fi
+
 log "==== Certificate renewal completed successfully ===="
 
 exit 0
